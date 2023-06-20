@@ -1,4 +1,4 @@
-# Face-Recoginition-App-Python
+# Face-Recoginition with GSM using Atmega 328P
 A very simple Face Recognition App is made using Python.
 It uses our laptop/desktop camera to identify each and every individual correctly.
 Also an excel sheet has been made where the faces detected by the AI will be listed and also the time at which the face was detected.
