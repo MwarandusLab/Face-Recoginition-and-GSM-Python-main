@@ -1,36 +1,33 @@
 #include <SoftwareSerial.h>
 
 //Create software serial object to communicate with SIM800L
-SoftwareSerial mySerial(3, 2); //SIM800L Tx & Rx is connected to Arduino #3 & #2
+SoftwareSerial sim(7, 8); // TX, RX GSM Module
 
 // Define the LED pins
-const int redLedPin = 9;
-const int greenLedPin = 10;
+int redLedPin = 3;
+int greenLedPin = 2;
 
 int Sms = 0;
+
+bool SendSms = false;
+
+int _timeout;
+String _buffer;
+String number = "+254712345678"; //-> change with your number
+
 
 void setup() {
   // Initialize the serial communication
   Serial.begin(9600);
-
-  //Begin serial communication with Arduino and SIM800L
-  mySerial.begin(9600);
-
   // Set the LED pins as output
   pinMode(redLedPin, OUTPUT);
   pinMode(greenLedPin, OUTPUT);
 
-  Serial.println("Initializing..."); 
-  delay(1000);
-
-  mySerial.println("AT"); //Once the handshake test is successful, it will back to OK
-  updateSerial();
-  delay(1000);
+  _buffer.reserve(50);
 
 }
 
 void loop() {
-  updateSerial();
   if (Serial.available() > 0) {
     // Read the incoming command
     char command = Serial.read();
@@ -40,24 +37,22 @@ void loop() {
       // Command to turn on the green LED
       digitalWrite(greenLedPin, HIGH);
       digitalWrite(redLedPin, LOW);
+      delay(2000);
       Sms = 0;
     }else if (command == '2') {
       // Command to turn on the red LED
       digitalWrite(redLedPin, HIGH);
       digitalWrite(greenLedPin, LOW);
       if(Sms == 0){
-        mySerial.println("AT+CMGF=1"); // Configuring TEXT mode
-        updateSerial();
-        mySerial.println("AT+CMGS=\"+254712345678\"");//change ZZ with country code and xxxxxxxxxxx with phone number to sms
-        updateSerial();
-        mySerial.print("Intruder Detected"); //text content
-        updateSerial();
-        mySerial.write(26);
-        delay(1000);
+        sim.begin(9600);
+        SendMessage();
+        sim.end();
+        Serial.begin(9600);
         Sms = 1;
       }else{
-        //Print Nothing
+        //Do nothing
       }
+      delay(2000);
     }else if(command == '3') {
       // Command to turn off the red LED and also turns off Green LED
       digitalWrite(redLedPin, LOW);
@@ -66,14 +61,28 @@ void loop() {
     }
   }
 }
-void updateSerial(){
-  delay(500);
-  while (Serial.available()) 
+String _readSerial() {
+  _timeout = 0;
+  while  (!sim.available() && _timeout < 12000  )
   {
-    mySerial.write(Serial.read());//Forward what Serial received to Software Serial Port
+    delay(13);
+    _timeout++;
   }
-  while(mySerial.available()) 
-  {
-    Serial.write(mySerial.read());//Forward what Software Serial received to Serial Port
+  if (sim.available()) {
+    return sim.readString();
   }
+}
+void SendMessage(){
+  //Serial.println ("Sending Message");
+  sim.println("AT+CMGF=1");    //Sets the GSM Module in Text Mode
+  delay(200);
+  //Serial.println ("Set SMS Number");
+  sim.println("AT+CMGS=\"" + number + "\"\r"); //Mobile phone number to send message
+  delay(200);
+  String SMS = "Intruder Detected";
+  sim.println(SMS);
+  delay(100);
+  sim.println((char)26);// ASCII code of CTRL+Z
+  delay(200);
+  _buffer = _readSerial();
 }
