@@ -42,16 +42,26 @@ def markAttendance(name):
             f.writelines(f'\n{name},{dateString}')
 
 # Establish serial connection with FTDI
-serial_port = "COM14"  # Replace with the appropriate COM port
+serial_port = "/dev/ttyACM0"  # Replace with the appropriate COM port
 baud_rate = 9600
 ser = serial.Serial(serial_port, baud_rate)
 
 encodeListKnown = findEncodings(images)
 print('Encoding Complete')
 
+# Mapping names to specific serial data
+name_to_serial = {
+    'IAN': b'1',
+    'JAMES': b'2',
+    'LUCY': b'3',
+    'JOHN': b'4',
+    'JANET': b'5'
+}
+
 # Initialize variables for motion detection and face detection
 previous_frame = None
 face_detected = False
+recognized_faces = {}  # Dictionary to track recognition state
 
 cap = cv2.VideoCapture(0)
 
@@ -94,12 +104,26 @@ while True:
             if matches[matchIndex]:
                 # Face recognized
                 name = classNames[matchIndex].upper()
+                if name in recognized_faces and recognized_faces[name] >= 3:
+                    continue  # Skip if already printed/sent 3 times
+
+                if name not in recognized_faces:
+                    recognized_faces[name] = 1
+                else:
+                    recognized_faces[name] += 1
+
+                serial_data = name_to_serial.get(name, b'6')  # Default to '6' if name not found
+                for _ in range(3):
+                    ser.write(serial_data)  # Send corresponding serial data multiple times
+                    print(f"Match found: {name}, sending serial data: {serial_data.decode()}")  # Print serial data
+
                 face_detected = True
-                ser.write(b'1')  # Send '1' to turn on green LED
+
             else:
                 # Face not recognized
                 name = 'Unknown'
-                ser.write(b'2')  # Send '0' to turn off green LED and turn on red LED
+                ser.write(b'7')  # Send '7' for unknown face
+                print("No match found, sending serial data: 7")
 
             y1, x2, y2, x1 = faceloc
             y1, x2, y2, x1 = y1 * 4, x2 * 4, y2 * 4, x1 * 4
@@ -115,8 +139,9 @@ while True:
                 cv2.putText(img, name, (x1+6, y2-6), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 255, 255), 2)
                 markAttendance(name)
 
-    if not face_detected:
-        ser.write(b'3')  # Send '0' to turn off green LED and turn on red LED
+    else:
+        # No motion detected, reset recognition state
+        recognized_faces = {}
 
     cv2.imshow('Webcam', img)
     if cv2.waitKey(1) == ord('q'):
